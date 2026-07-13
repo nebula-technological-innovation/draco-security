@@ -1,0 +1,29 @@
+{
+  "name": "@draco/security",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Draco Security — enterprise security layer with SAST, DAST, secrets detection, dependency auditing, container scanning, and threat modeling",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "dev": "tsup src/index.ts --format esm --dts --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo lint-ok"
+  },
+  "dependencies": {
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.2"
+  }
+}

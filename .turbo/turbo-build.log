@@ -1,0 +1,10 @@
+$ tsup src/index.ts --format esm --dts --clean
+CLI Building entry: src/index.ts
+CLI Using tsconfig: tsconfig.json
+CLI tsup v8.5.1
+CLI Target: es2022
+CLI Cleaning output folder
+ESM Build start
+ESM dist/index.js 17.88 KB
+ESM ⚡️ Build success in 1745ms
+DTS Build start
