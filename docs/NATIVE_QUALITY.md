@@ -50,3 +50,31 @@ promotion. Full security SAST/DAST, runtime integration, SBOM and license
 provenance remain independent release gates.
 
 Portfolio tracking: https://github.com/nebula-technological-innovation/nebula-monorepo/issues/1236
+
+## First-party live advisory verification
+
+The previous empty embedded advisory database was not a valid current feed.
+The updated `DependencyScanner.scanLockfile(lockfile, 'npm')` now invokes a
+restricted `npm audit --json --package-lock-only --ignore-scripts --no-fund`
+in a disposable temporary directory using the public npm registry.
+**This call uses the network** to retrieve current advisory data, but it uses
+no paid Code Quality platform, external model or source-repository mutation.
+
+The adapter validates the npm v2/v3 dependency graph, package integrity,
+npm response completeness and exit status, and returns typed proof:
+`evidence.source`, registry URL, lockfile SHA-256, response SHA-256,
+timestamp and affected-package count. Missing network, malformed/partial
+response, invalid lockfile or unsupported ecosystem **blocks** verification.
+The package-list-only fallback also remains fail-closed without verified
+advisory intelligence. Clean results apply to the observed lockfile at
+the stated timestamp, not indefinitely.
+
+**Verified live regression:** Current locked Draco dependency graph produced
+0 reported npm advisories. A previously committed vulnerable graph yielded
+1 high-severity Zod and 1 low-severity esbuild advisory, with grounded GHSA
+identifiers. Unit tests provide deterministic offline positive and negative
+fixtures and do not require the registry to run.
+
+Before approval, repeat a live verification on the final exact PR SHA and
+test downstream consumers of the Zod v4 major upgrade separately. Do not
+call missing advisory data clean. All release/merge holds remain.

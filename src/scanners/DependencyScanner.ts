@@ -1,4 +1,5 @@
 import type { ScanResult, ScannerType, Finding } from '../types/index.js';
+import { auditNpmLockfile, type AuditRunner, type VerifiedNpmScan } from './NpmAdvisory.js';
 
 const NPM_ADVISORY_DB: Record<
   string,
@@ -76,6 +77,9 @@ export class DependencyScanner {
       };
     }
 
+    if (packages.some((p) => p.ecosystem !== 'npm')) {
+      throw new Error('No verified vulnerability advisory source for non-npm packages');
+    }
     return this.scanNpm(
       packages
         .filter((p) => p.ecosystem === 'npm')
@@ -86,52 +90,12 @@ export class DependencyScanner {
   async scanLockfile(
     content: string,
     ecosystem: 'npm' | 'pip' | 'cargo' | 'go' | 'maven',
-  ): Promise<ScanResult> {
-    const packages = this.parseLockfile(content, ecosystem);
-    return this.scan(packages);
-  }
-
-  private parseLockfile(
-    content: string,
-    ecosystem: string,
-  ): Array<{ name: string; version: string; ecosystem: string }> {
-    const result: Array<{ name: string; version: string; ecosystem: string }> = [];
-
-    if (ecosystem === 'npm') {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(content);
-      } catch {
-        throw new Error('Invalid npm lockfile JSON: dependency scan unavailable');
-      }
-      if (!parsed || typeof parsed !== 'object') {
-        throw new Error('Npm lockfile root is invalid');
-      }
-      const lock = parsed as {
-        lockfileVersion?: number;
-        packages?: Record<string, { version?: unknown; dependencies?: unknown; devDependencies?: unknown } | undefined>;
-      };
-      if (![2, 3].includes(lock.lockfileVersion ?? 0) || !lock.packages) {
-        throw new Error('Unsupported npm lockfile: dependency scan unavailable');
-      }
-      for (const [path, entry] of Object.entries(lock.packages)) {
-        if (!path.startsWith('node_modules/') || !entry || typeof entry.version !== 'string') {
-          continue;
-        }
-        const marker = 'node_modules/';
-        const name = path.slice(path.lastIndexOf(marker) + marker.length);
-        if (name) {
-          result.push({ name, version: entry.version, ecosystem: 'npm' });
-        }
-      }
-      const root = lock.packages[''];
-      if (result.length === 0 && root && (
-        Object.keys((root.dependencies as object) ?? {}).length > 0 ||
-        Object.keys((root.devDependencies as object) ?? {}).length > 0
-      )) {
-        throw new Error('Npm lockfile has dependencies but no resolved package entries');
-      }
+    options: { runner?: AuditRunner; now?: () => number } = {},
+  ): Promise<VerifiedNpmScan> {
+    if (ecosystem !== 'npm') {
+      throw new Error('No verified vulnerability advisory source for ecosystem: ' + ecosystem);
     }
-    return result;
+    return auditNpmLockfile(content, options);
   }
+
 }
