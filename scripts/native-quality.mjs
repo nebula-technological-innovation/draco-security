@@ -38,6 +38,8 @@ export function verify(root, { typecheck = false, expectedSha = null } = {}) {
   const lockPath = join(root, 'package-lock.json');
   if (!existsSync(packagePath)) errors.push('package.json missing');
   if (!existsSync(lockPath)) errors.push('package-lock.json missing: reproducible install blocked');
+  const committedLock = call('git', ['cat-file', '-e', 'HEAD:package-lock.json'], root);
+  if (committedLock.status !== 0) errors.push('package-lock.json must be committed at exact HEAD');
   if (existsSync(packagePath) && existsSync(lockPath)) {
     try {
       const pbuf = readFileSync(packagePath), lbuf = readFileSync(lockPath);
