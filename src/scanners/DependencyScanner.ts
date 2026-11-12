@@ -1,4 +1,4 @@
-import type { Dependency, ScanResult, ScannerType, Finding } from '../types/index.js';
+import type { ScanResult, ScannerType, Finding } from '../types/index.js';
 
 const NPM_ADVISORY_DB: Record<
   string,
@@ -16,6 +16,21 @@ export class DependencyScanner {
   async scanNpm(packages: Array<{ name: string; version: string }>): Promise<ScanResult> {
     const startTime = Date.now();
     const findings: Finding[] = [];
+
+    // No advisory intelligence is shipped in this module. An empty database
+    // must never be represented as a clean vulnerability assessment.
+    if (packages.length > 0 && Object.keys(NPM_ADVISORY_DB).length === 0) {
+      findings.push({
+        id: 'dependency-advisory-feed-unavailable',
+        scanner: 'dependencies',
+        severity: 'high',
+        title: 'Dependency advisory feed unavailable (verification blocked)',
+        description:
+          'No trusted vulnerability intelligence is configured. This is an incomplete scan, not an assertion of a known CVE.',
+        recommendation:
+          'Run an independently validated lockfile-based dependency audit or configure a trustworthy current advisory source.',
+      });
+    }
 
     for (const pkg of packages) {
       const advisories = NPM_ADVISORY_DB[pkg.name] ?? [];
@@ -83,16 +98,40 @@ export class DependencyScanner {
     const result: Array<{ name: string; version: string; ecosystem: string }> = [];
 
     if (ecosystem === 'npm') {
-      const pkgMatch = content.match(/"name":\s*"([^"]+)"/);
-      if (pkgMatch) {
-        const depRegex = /"([^"]+)":\s*\{\s*"version":\s*"([^"]+)"/g;
-        let m;
-        while ((m = depRegex.exec(content)) !== null) {
-          result.push({ name: m[1], version: m[2], ecosystem: 'npm' });
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        throw new Error('Invalid npm lockfile JSON: dependency scan unavailable');
+      }
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Npm lockfile root is invalid');
+      }
+      const lock = parsed as {
+        lockfileVersion?: number;
+        packages?: Record<string, { version?: unknown; dependencies?: unknown; devDependencies?: unknown } | undefined>;
+      };
+      if (![2, 3].includes(lock.lockfileVersion ?? 0) || !lock.packages) {
+        throw new Error('Unsupported npm lockfile: dependency scan unavailable');
+      }
+      for (const [path, entry] of Object.entries(lock.packages)) {
+        if (!path.startsWith('node_modules/') || !entry || typeof entry.version !== 'string') {
+          continue;
+        }
+        const marker = 'node_modules/';
+        const name = path.slice(path.lastIndexOf(marker) + marker.length);
+        if (name) {
+          result.push({ name, version: entry.version, ecosystem: 'npm' });
         }
       }
+      const root = lock.packages[''];
+      if (result.length === 0 && root && (
+        Object.keys((root.dependencies as object) ?? {}).length > 0 ||
+        Object.keys((root.devDependencies as object) ?? {}).length > 0
+      )) {
+        throw new Error('Npm lockfile has dependencies but no resolved package entries');
+      }
     }
-
     return result;
   }
 }

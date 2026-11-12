@@ -1,47 +1,52 @@
-# Nebula/Aether first-party dependency and TypeScript quality gate
+# Draco Security — first-party dependency and source quality
 
-This repository is migrating away from paid GitHub Code Quality. This **draft-only**
-preflight is a reproducibility and evidence control, not a release authorization.
+**Review-only changes.** The release/merge hold remains even when individual
+checks pass.
 
-## Verified scope
+## Verified improvements
 
-- Uses Node.js built-ins and `git`; does **not** call GitHub Actions, npm install,
-  external code-quality services, model APIs, or a network service.
-- Validates exact checked-out Git SHA (optionally an expected SHA), tracked-tree
-  cleanliness, npm lockfile v3, the root dependency spec, and package-integrity entries.
-- Optional `--typecheck` invokes only the already installed, local
-  `node_modules/typescript/bin/tsc` with `--noEmit` and no shell.
-- Emits JSON with SHA-256 manifest digests and fail-closed status. It does not
-  publish credentials, merge code, deploy, or grant any production permission.
-- All nine synthetic contract tests passed in an isolated Node.js 22 environment,
-  but real repo build and installed dependency checks are **not verified**.
+- npm v3 `package-lock.json` with real registry-resolved dependency integrity.
+- Zod migrated from vulnerable v3 to **v4**. The esbuild resolution is
+  overridden to a patched **0.28.x** release within the reviewed local lock.
+- Frozen `npm ci --ignore-scripts --no-audit --no-fund`, TypeScript
+  `tsc --noEmit`, tsup ESM/type-declaration build and strict pinned
+  open-source Biome lint all passed on the isolated Mac worktree.
+- **15/15** native and source scanner tests passed (including lockfile
+  provenance, Zod schema compatibility, fail-closed advisory feed, and secret
+  output redaction).
+- A public npm advisory audit returned **0 known findings** in the tested
+  dependency graph. This does not guarantee absence of vulnerabilities.
 
-## Current blocker
+## Critical limitation — advisory authority
 
-**No root `package-lock.json` is committed.** The verifier intentionally
-returns a nonzero exit until a legitimate npm-generated lockfile is reviewed
-and installed. Do not fabricate package integrity hashes or bypass the gate.
+The embedded `DependencyScanner` does not include an authoritative advisory
+database. It now emits a **high-severity verification blocker**, rather than
+incorrectly reporting a clean vulnerability scan, whenever packages are
+supplied without configured intelligence. Invalid/unresolved npm lockfiles also
+fail closed. The independent npm audit is separate and must run for actual
+known-vulnerability verification. Do not treat the embedded scanner's
+verification blocker as a discovered CVE.
 
-## Reproducible recovery procedure (requires an approved, clean worktree and a working registry)
+The `SecretScanner` reports `[REDACTED]` rather than preserving credential
+bytes in finding output. A regression test checks this boundary.
+
+## Operator validation
 
 ```sh
-# In an isolated branch, check free disk and use the approved npm registry.
-npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-
-# Inspect package-lock.json and package.json before committing.
-git diff --check
-git diff -- package.json package-lock.json
-
-# Commit and verify the exact SHA; use this after the lockfile exists.
-node --test tests/native-quality.test.mjs
 npm ci --ignore-scripts --no-audit --no-fund
+npm run typecheck
+npm run build
+npm run lint
+npm run test
+npm audit --audit-level=high --no-fund
 node scripts/native-quality.mjs --typecheck --expected-sha "$(git rev-parse HEAD)"
 ```
 
-For fully offline operation use `npm ci --offline --ignore-scripts` **only if all
-locked tarballs are already cached**. Missing dependencies are a blocker, not a
-passing result. Follow the existing TypeScript `typecheck` command, then
-run project tests, dependency and license checks, and the broader Nebula native
-security policy independently. Do not automatically merge or promote builds.
+This native control uses no paid GitHub Code Quality, paid tokens, merge,
+deployment, or repository-setting changes. Keep the Zod major-version
+migration, esbuild override, and dependency scanner behavior under code review;
+test consumers and other runtime integration surfaces before production
+promotion. Full security SAST/DAST, runtime integration, SBOM and license
+provenance remain independent release gates.
 
-Related tracking: https://github.com/nebula-technological-innovation/nebula-monorepo/issues/1236
+Portfolio tracking: https://github.com/nebula-technological-innovation/nebula-monorepo/issues/1236
