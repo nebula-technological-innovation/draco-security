@@ -1,4 +1,4 @@
-import type { IaCIssue, ScanResult, ScannerType, Finding } from '../types/index.js';
+import type { ScanResult, ScannerType, Finding } from '../types/index.js';
 
 interface IaCRule {
   id: string;

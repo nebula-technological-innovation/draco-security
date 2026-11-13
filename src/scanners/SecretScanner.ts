@@ -37,7 +37,7 @@ export class SecretScanner {
 
   async scan(content: string, filePath?: string): Promise<ScanResult> {
     const startTime = Date.now();
-    const findings: any[] = [];
+    const findings: SecretMatch[] = [];
 
     for (const { type, pattern, flags } of SECRET_PATTERNS) {
       const re = flags ? new RegExp(pattern.source, flags) : pattern;
@@ -47,7 +47,7 @@ export class SecretScanner {
         if (match) {
           findings.push({
             type,
-            value: match[0].slice(0, 40) + '...',
+            value: '[REDACTED]',
             file: filePath ?? 'unknown',
             line: i + 1,
             entropy: this.calcEntropy(match[0]),

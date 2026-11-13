@@ -1,4 +1,5 @@
-import type { Dependency, ScanResult, ScannerType, Finding } from '../types/index.js';
+import type { ScanResult, ScannerType, Finding } from '../types/index.js';
+import { auditNpmLockfile, type AuditRunner, type VerifiedNpmScan } from './NpmAdvisory.js';
 
 const NPM_ADVISORY_DB: Record<
   string,
@@ -16,6 +17,21 @@ export class DependencyScanner {
   async scanNpm(packages: Array<{ name: string; version: string }>): Promise<ScanResult> {
     const startTime = Date.now();
     const findings: Finding[] = [];
+
+    // No advisory intelligence is shipped in this module. An empty database
+    // must never be represented as a clean vulnerability assessment.
+    if (packages.length > 0 && Object.keys(NPM_ADVISORY_DB).length === 0) {
+      findings.push({
+        id: 'dependency-advisory-feed-unavailable',
+        scanner: 'dependencies',
+        severity: 'high',
+        title: 'Dependency advisory feed unavailable (verification blocked)',
+        description:
+          'No trusted vulnerability intelligence is configured. This is an incomplete scan, not an assertion of a known CVE.',
+        recommendation:
+          'Run an independently validated lockfile-based dependency audit or configure a trustworthy current advisory source.',
+      });
+    }
 
     for (const pkg of packages) {
       const advisories = NPM_ADVISORY_DB[pkg.name] ?? [];
@@ -61,6 +77,9 @@ export class DependencyScanner {
       };
     }
 
+    if (packages.some((p) => p.ecosystem !== 'npm')) {
+      throw new Error('No verified vulnerability advisory source for non-npm packages');
+    }
     return this.scanNpm(
       packages
         .filter((p) => p.ecosystem === 'npm')
@@ -71,28 +90,12 @@ export class DependencyScanner {
   async scanLockfile(
     content: string,
     ecosystem: 'npm' | 'pip' | 'cargo' | 'go' | 'maven',
-  ): Promise<ScanResult> {
-    const packages = this.parseLockfile(content, ecosystem);
-    return this.scan(packages);
-  }
-
-  private parseLockfile(
-    content: string,
-    ecosystem: string,
-  ): Array<{ name: string; version: string; ecosystem: string }> {
-    const result: Array<{ name: string; version: string; ecosystem: string }> = [];
-
-    if (ecosystem === 'npm') {
-      const pkgMatch = content.match(/"name":\s*"([^"]+)"/);
-      if (pkgMatch) {
-        const depRegex = /"([^"]+)":\s*\{\s*"version":\s*"([^"]+)"/g;
-        let m;
-        while ((m = depRegex.exec(content)) !== null) {
-          result.push({ name: m[1], version: m[2], ecosystem: 'npm' });
-        }
-      }
+    options: { runner?: AuditRunner; now?: () => number } = {},
+  ): Promise<VerifiedNpmScan> {
+    if (ecosystem !== 'npm') {
+      throw new Error('No verified vulnerability advisory source for ecosystem: ' + ecosystem);
     }
-
-    return result;
+    return auditNpmLockfile(content, options);
   }
+
 }
