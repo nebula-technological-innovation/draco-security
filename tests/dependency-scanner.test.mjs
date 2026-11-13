@@ -82,6 +82,16 @@ test('incomplete dependency graph fails before consulting advisory provider', as
   await assert.rejects(scanner.scanLockfile(JSON.stringify(broken), 'npm'), /missing resolved dependency/);
 });
 
+test('missing transitive dependency cannot be verified as clean', async () => {
+  const scanner = new DependencyScanner();
+  const broken = structuredClone(lock);
+  broken.packages['node_modules/zod'].dependencies = { undisclosed: '^1.0.0' };
+  await assert.rejects(
+    scanner.scanLockfile(JSON.stringify(broken), 'npm'),
+    /missing transitive dependency/,
+  );
+});
+
 test('offline, malformed, unverified, and internally inconsistent npm results fail closed', async () => {
   const scanner = new DependencyScanner();
   for (const response of [

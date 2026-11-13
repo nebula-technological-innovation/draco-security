@@ -85,6 +85,30 @@ function validateLock(content: string): {
         !/^(sha512|sha384|sha256)-[A-Za-z0-9+/=]+$/.test(info.integrity)) {
       throw new Error('npm package graph contains missing version or integrity');
     }
+    // Reject omitted transitive dependency records as incomplete evidence.
+    for (const typ of ['dependencies', 'optionalDependencies'] as const) {
+      const declared = info[typ];
+      if (declared === undefined) continue;
+      if (!declared || typeof declared !== 'object' || Array.isArray(declared)) {
+        throw new Error('npm package graph dependency object invalid');
+      }
+      for (const name of Object.keys(declared)) {
+        let ancestor = path;
+        let resolved = false;
+        while (true) {
+          const candidate = [ancestor, 'node_modules', name].filter(Boolean).join('/');
+          if (packages[candidate]) { resolved = true; break; }
+          const boundary = ancestor.lastIndexOf('/node_modules/');
+          if (boundary < 0) {
+            if (!ancestor) break;
+            ancestor = '';
+          } else {
+            ancestor = ancestor.slice(0, boundary);
+          }
+        }
+        if (!resolved) throw new Error('npm package graph missing transitive dependency');
+      }
+    }
     count++;
   }
   return {root, count, lock};
